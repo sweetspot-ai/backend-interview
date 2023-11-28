@@ -18,7 +18,7 @@ The request and token capacity will refresh every second. For example, if the AP
 ## Goal
 The goal is to write a clean and extensible solution to the problem. There is no need to focus on algorithmic optimizations.
 
-# Limitations
+## Limitations
 
 - You cannot execute more than one request at the same time
 - You cannot modify any pre-existing code
