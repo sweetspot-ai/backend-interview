@@ -1,8 +1,8 @@
 import json
 import os
 
-from interview.server import Server
 from interview.request import Request, Response
+from interview.server import Server
 
 ENDPOINT_FILE: str = "endpoints.json"
 
