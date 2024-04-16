@@ -6,7 +6,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 from typing import Dict, Generator
 
-from interview.request import LoggedRequest, Request
+from interview.request import Header, LoggedRequest, Request, Response
 
 FULFILL_STATUS: str = "fulfilled"
 HEARTBEAT_DURATION_SEC: int = 1
@@ -71,7 +71,7 @@ class InferenceLogger:
             "total_elapsed_time": total_elapsed_time,
             "num_errors": num_errors,
             "longest_elapsed_time": longest_elapsed_time,
-            "total_fulfilled": total_fulfilled
+            "total_fulfilled": total_fulfilled,
         }
 
 
@@ -94,7 +94,7 @@ class InferenceEndpoint:
         self._lock: threading.Lock = threading.Lock()
         self._stop: threading.Event = threading.Event()
 
-    def receive(self, request: Request) -> None:
+    def receive(self, request: Request) -> Response:
         if self._requests_capacity == 0:
             exc: RequestLimitExceededException = RequestLimitExceededException(route=self.route, request=request)
             self._logger.error(self.route, request, exc)
@@ -107,6 +107,9 @@ class InferenceEndpoint:
             self._requests_capacity -= 1
             self._tokens_capacity -= request.token_count
             self._logger.fulfill(self.route, request)
+            return Response(
+                header=Header(request_rate_limit=self._requests_capacity, token_limit=self._tokens_capacity)
+            )
 
     def start(self) -> None:
         self._logger.info(self.route, f"Starting endpoint {self.route}")
@@ -164,5 +167,6 @@ class Server:
             thread.join()
         pprint.pprint(self._logger.get_statistics())
 
-    def receive(self, route: str, request: Request) -> None:
-        self.routes[route].receive(request)
+    def receive(self, route: str, request: Request) -> Response:
+        response: Response = self.routes[route].receive(request)
+        return response

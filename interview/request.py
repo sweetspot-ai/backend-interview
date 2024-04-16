@@ -12,3 +12,14 @@ class LoggedRequest:
     route: str
     elapsed_time_sec: int
     status: str
+
+
+@dataclass
+class Header:
+    request_rate_limit: int
+    token_limit: int
+
+
+@dataclass
+class Response:
+    header: Header
