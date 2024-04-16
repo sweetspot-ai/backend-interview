@@ -28,7 +28,7 @@ def main() -> None:
     with server.up() as server:
         # Example Code
         for _ in range(100):
-            response: Response = server.receive("/a", Request(token_count=10))
+            response: Response = server.receive("/chat/gpt-3.5-turbo", Request(token_count=10))
             print(response)
 
 
