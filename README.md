@@ -8,7 +8,7 @@ You will directly interact with the ```Server``` class to route requests.
 Here's an example:
 ```python
 request = Request(token_capacity=20)
-server.receive(route="ab", request=request)
+header = server.receive(route="/ab", request=request)
 ```
 If you exceed the requests limit or if you exceed the tokens limit, you will receive either a ```RequestLimitExceededException``` or ```TokenLimitExceededException```
 
@@ -16,7 +16,7 @@ The request and token capacity will refresh every second. For example, if the AP
 
 
 ## Goal
-The goal is to write a clean and extensible solution to the problem. There is no need to focus on algorithmic optimizations.
+The goal is to write a clean and extensible solution to the problem. There is no need to focus on algorithmic optimizations. Load in the endpoints and the requests, and then use the ```Server``` class to route the requests.
 
 ## Limitations
 

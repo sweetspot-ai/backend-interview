@@ -2,6 +2,7 @@ import json
 import os
 
 from interview.server import Server
+from interview.request import Request, Response
 
 ENDPOINT_FILE: str = "endpoints.json"
 
@@ -25,7 +26,10 @@ def init_server(verbose: bool = True) -> Server:
 def main() -> None:
     server: Server = init_server()
     with server.up() as server:
-        ...
+        # Example Code
+        for _ in range(100):
+            response: Response = server.receive("/a", Request(token_count=10))
+            print(response)
 
 
 if __name__ == "__main__":
