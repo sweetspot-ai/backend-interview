@@ -4,7 +4,7 @@ import threading
 import time
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import Dict, Generator, Union
+from typing import Dict, Generator, Union, List
 
 from interview.request import (
     Header,
@@ -23,9 +23,12 @@ class InferenceLogger:
     def __init__(self, verbose: bool):
         self.verbose: bool = verbose
         self.init_time: datetime.datetime = datetime.datetime.now()
-        self.info_logs: defaultdict[str, list] = defaultdict(list)
-        self.fulfilled_logs: defaultdict[str, list] = defaultdict(list)
-        self.errored_logs: defaultdict[str, list] = defaultdict(list)
+        self.info_logs: defaultdict[str, List[str]] = defaultdict(list)
+        self.fulfilled_logs: defaultdict[str, List[LoggedRequest]] = defaultdict(list)
+        self.errored_logs: defaultdict[str, List[LoggedRequest]] = defaultdict(list)
+        self.num_received: int = 0
+        self.num_fulfilled: int = 0
+        self.num_errored: int = 0
 
     def _create_logged_request(self, route: str, request: Request, status: str) -> LoggedRequest:
         return LoggedRequest(
@@ -41,12 +44,16 @@ class InferenceLogger:
             print(msg)
 
     def fulfill(self, route: str, request: Request) -> None:
+        self.num_received += 1
+        self.num_fulfilled += 1
         logged_request: LoggedRequest = self._create_logged_request(route=route, request=request, status=FULFILL_STATUS)
         self.fulfilled_logs[route].append(logged_request)
         if self.verbose:
             print(f"Fulfilled request {request} with route {route}")
 
     def error(self, route: str, request: Request, error: Exception) -> None:
+        self.num_received += 1
+        self.num_errored += 1
         logged_request: LoggedRequest = self._create_logged_request(route=route, request=request, status=str(error))
         self.errored_logs[route].append(logged_request)
         if self.verbose:
@@ -54,17 +61,16 @@ class InferenceLogger:
 
     def get_statistics(self) -> Dict[str, int]:
         total_elapsed_time: int = sum(log.elapsed_time_sec for logs in self.fulfilled_logs.values() for log in logs)
-        num_errors: int = sum(len(logs) for logs in self.errored_logs.values())
         longest_elapsed_time: int = max(
             (log.elapsed_time_sec for logs in self.fulfilled_logs.values() for log in logs), default=0
         )
-        total_fulfilled: int = sum(len(logs) for logs in self.fulfilled_logs.values())
 
         return {
             "total_elapsed_time": total_elapsed_time,
-            "num_errors": num_errors,
+            "num_received": self.num_received,
+            "num_fulfilled": self.num_fulfilled,
+            "num_errored": self.num_errored,
             "longest_elapsed_time": longest_elapsed_time,
-            "total_fulfilled": total_fulfilled,
         }
 
 
