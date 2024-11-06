@@ -4,26 +4,19 @@ import threading
 import time
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import Dict, Generator
+from typing import Dict, Generator, Union
 
-from interview.request import Header, LoggedRequest, Request, Response
+from interview.request import (
+    Header,
+    LoggedRequest,
+    Request,
+    RequestLimitExceededException,
+    Response,
+    TokenLimitExceededException,
+)
 
 FULFILL_STATUS: str = "fulfilled"
 HEARTBEAT_DURATION_SEC: int = 1
-
-
-class RateLimitException(Exception):
-    pass
-
-
-class RequestLimitExceededException(RateLimitException):
-    def __init__(self, route: str, request: Request, *args, **kwargs):
-        super().__init__(f"Exceeded requests limit for endpoint {route} with request {request}", *args, **kwargs)
-
-
-class TokenLimitExceededException(RateLimitException):
-    def __init__(self, route: str, request: Request, *args, **kwargs):
-        super().__init__(f"Exceeded tokens limit for endpoint {route} with request {request}", *args, **kwargs)
 
 
 class InferenceLogger:
@@ -85,8 +78,8 @@ class InferenceEndpoint:
         heartbeat_duration_sec: int = HEARTBEAT_DURATION_SEC,
     ):
         self.route: str = route
-        self.max_requests_per_minute: str = max_requests_per_minute
-        self.max_tokens_per_minute: str = max_tokens_per_minute
+        self.max_requests_per_minute: int = max_requests_per_minute
+        self.max_tokens_per_minute: int = max_tokens_per_minute
         self.heartbeat_duration_sec: int = heartbeat_duration_sec
         self._logger: InferenceLogger = logger
         self._requests_capacity: int = max_requests_per_minute
@@ -95,20 +88,43 @@ class InferenceEndpoint:
         self._stop: threading.Event = threading.Event()
 
     def receive(self, request: Request) -> Response:
+        exc: Union[RequestLimitExceededException, TokenLimitExceededException]
         if self._requests_capacity == 0:
-            exc: RequestLimitExceededException = RequestLimitExceededException(route=self.route, request=request)
+            exc = RequestLimitExceededException(route=self.route, request=request)
             self._logger.error(self.route, request, exc)
-            raise exc
+            return Response(
+                header=Header(
+                    max_requests_per_minute=self.max_requests_per_minute,
+                    max_tokens_per_minute=self.max_tokens_per_minute,
+                    remaining_requests_per_minute=self._requests_capacity,
+                    remaining_tokens_per_minute=self._tokens_capacity,
+                ),
+                exc=exc,
+            )
         if self._tokens_capacity - request.token_count < 0:
-            exc: TokenLimitExceededException = TokenLimitExceededException(route=self.route, request=request)
+            exc = TokenLimitExceededException(route=self.route, request=request)
             self._logger.error(self.route, request, exc)
-            raise exc
+            return Response(
+                header=Header(
+                    max_requests_per_minute=self.max_requests_per_minute,
+                    max_tokens_per_minute=self.max_tokens_per_minute,
+                    remaining_requests_per_minute=self._requests_capacity,
+                    remaining_tokens_per_minute=self._tokens_capacity,
+                ),
+                exc=exc,
+            )
         with self._lock:
             self._requests_capacity -= 1
             self._tokens_capacity -= request.token_count
             self._logger.fulfill(self.route, request)
             return Response(
-                header=Header(request_rate_limit=self._requests_capacity, token_limit=self._tokens_capacity)
+                header=Header(
+                    max_requests_per_minute=self.max_requests_per_minute,
+                    max_tokens_per_minute=self.max_tokens_per_minute,
+                    remaining_requests_per_minute=self._requests_capacity,
+                    remaining_tokens_per_minute=self._tokens_capacity,
+                ),
+                exc=None,
             )
 
     def start(self) -> None:
